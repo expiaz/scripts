@@ -8,11 +8,10 @@ from subprocess import check_output, CalledProcessError
 # @see https://labs.hakaioffsec.com/nginx-alias-traversal/
 # @see https://github.com/bayotop/off-by-slash
 
-needle = sys.argv[1]
-gitrep = sys.argv[2]
+gitrep = sys.argv[1]
 tag = None
-if len(sys.argv) > 3:
-    tag = sys.argv[3]
+if len(sys.argv) > 2:
+    tag = sys.argv[2]
 
 repo = git.Repo(gitrep)
 tags = reversed(list(map(lambda e: e.name, repo.tags)))
@@ -86,17 +85,6 @@ for tag in tags:
                     # vulnerable alias in contained in location block
                     candidates.append(tag)
                     print(success("%d:%s%d:%s" % (location_start, lines[location_start-1], alias_line, lines[alias_line-1])))
-
-    continue
-
-    if os.path.isfile(fichier):
-        print(success(fichier))
-        with open(fichier) as filecontent:
-            code = filecontent.readlines()
-            for i in range(len(code)):
-                source = code[i].rstrip()
-                if source.find(needle) != -1:
-                    print(success('\t%d: %s' % (i, source)))
 
 print()
 print('Tag matched:')
