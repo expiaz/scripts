@@ -31,18 +31,20 @@ if tag != None and tag not in tags:
     print(error("Tag %s not found" % tag))
     sys.exit(1)
 
+loc_reg = "location[^\/]+\/[_.a-zA-Z0-9+*$-\/]*[^\/]\s+\{"
+
 for tag in tags:
     repo.git.checkout(tag)
     print(tag)
     try:
-        matches = check_output(["grep", "-lRP", "location \/[_.a-zA-Z0-9-\/]*[^\/]\s+\{", gitrep])
+        matches = check_output(["grep", "-lRP", loc_reg, gitrep])
     except CalledProcessError:
         matches = b''
     for match_file in matches.splitlines():
         print(match_file.decode('utf-8'))
 
         try:
-            locations = check_output(["grep", "-nRP", "location \/[_.a-zA-Z0-9-\/]*[^\/]\s+\{", match_file])
+            locations = check_output(["grep", "-nRP", loc_reg, match_file])
         except CalledProcessError:
             locations = b''
 
