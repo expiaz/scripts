@@ -2,8 +2,17 @@
 
 from datetime import datetime
 import argparse
+import re, sys
 
 special = '@*!#?$%%\'"'
+
+complexity_filters = {
+    'any': r'.*',
+    'lower': r'[a-z]',
+    'upper': r'[A-Z]',
+    'number': r'[0-9]',
+    'special': r'[^a-zA-Z0-9]'
+}
 
 parser = argparse.ArgumentParser(description="""
 Generate basic wordlist
@@ -15,8 +24,17 @@ parser.add_argument('-y', dest='y', help='append years (default 1990-current). F
 parser.add_argument('-j', dest='j', default='', help='use these chars to join word and suffix (all=%s)' % special)
 parser.add_argument('-a', dest='a', default='', help='append these chars at the end (all=%s)' % special)
 parser.add_argument('-l', dest='l', help='only keep results between min-max or at least min characters')
+parser.add_argument('-c', dest='c', default='any', help='Choose from %s. Only keep results that contains at least the specified characters set' % ','.join(complexity_filters.keys()))
+parser.add_argument('-r', dest='r', help='only keep results that matches the given regex')
 
 args = parser.parse_args()
+
+complexity = args.c.split(',')
+if 'all' in complexity:
+    complexity = ['lower','upper','number','special']
+
+if args.r:
+    reg = re.compile(args.r)
 
 if args.n:
     [s, *e] = args.n.split('-')
@@ -46,9 +64,32 @@ else:
     minlen = 0
     maxlen = 999
 
-def output_result(s):
+
+def filter_len(s):
     if minlen <= len(s) and maxlen >= len(s):
+        filter_complexity(s)
+
+
+def filter_complexity(s):
+    for c in complexity:
+        if c not in complexity_filters:
+            print("Error: -c %s not found in %s" % (
+                c,
+                ','.join(complexity_filters.keys())
+            ))
+            sys.exit(0)
+        if not re.search(complexity_filters[c], s):
+            return
+    filter_reg(s)
+
+
+def filter_reg(s):
+    if args.r != None:
+        if re.fullmatch(reg, s):
+            print(s)
+    else:
         print(s)
+
 
 wl = set()
 
@@ -85,9 +126,9 @@ for p in args.p:
                 wl.add(w + s + a)
 
 for i in wl:
-    output_result(i)
+    filter_len(i)
 for u in wl:
-    output_result(u[0].upper() + u[1:])
+    filter_len(u[0].upper() + u[1:])
 
 
 # '-j' '@!#'
