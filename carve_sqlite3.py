@@ -175,12 +175,12 @@ with open(sys.argv[1], 'rb') as f:
 
             db_data = mem[start:start+db_size]
             if len(db_data) < db_size:
-                print("%s has uncomplete data missing %d bytes starting from %d" % (sys.argv[1], db_size-db_data, start))
+                print("%s has uncomplete data missing %d bytes starting from %d" % (sys.argv[1], db_size-len(db_data), start))
                 sys.exit(1)
 
             db_name = '%s.sqlite3' % start
             with open(db_name, 'wb') as dbfile:
-                dbfile.write(mem[start:start+db_size])
+                dbfile.write(db_data)
             print('%s written to disk' % db_name)
 
         else:
