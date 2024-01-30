@@ -14,18 +14,21 @@ complexity_filters = {
     'special': r'[^a-zA-Z0-9]'
 }
 
+
 parser = argparse.ArgumentParser(description="""
 Generate basic wordlist
-Example: -p entreprise,ville,departement:codepostal,123,23 -p covid:19,20 -y 2023 -n 1-10 -a all -j all -l 8
+Example: -p entreprise,ville,departement:codepostal,123,23 -p covid:19,20 -y 2023 -n 1-10 -a -j -l 8
 """)
 parser.add_argument('-p', nargs='+', action='append', dest='p', required=True, help='base words for wordlist generation. Format <word[,word]>:<suffix[,suffix]>]')
-parser.add_argument('-n', dest='n', help='append number (default 1..123). Format min-max or min to set only min')
+parser.add_argument('-n', nargs='*', action='append', dest='n', help='append number (default 1..123). Format min-max or min to set only min')
 parser.add_argument('-y', dest='y', help='append years (default 1990-current). Format min (stop to current). Use -n 2005-2010 for arbitrary years')
-parser.add_argument('-j', dest='j', default='', help='use these chars to join word and suffix (all=%s)' % special)
-parser.add_argument('-a', dest='a', default='', help='append these chars at the end (all=%s)' % special)
+parser.add_argument('-j', nargs='?', dest='j', default='', help='use these chars to join word and suffix (-j=%s)' % special)
+parser.add_argument('-a', nargs='?', dest='a', default='', help='append these chars at the end (-a=%s)' % special)
 parser.add_argument('-l', dest='l', help='only keep results between min-max or at least min characters')
 parser.add_argument('-c', dest='c', default='any', help='Choose from %s. Only keep results that contains at least the specified characters set' % ','.join(complexity_filters.keys()))
 parser.add_argument('-r', dest='r', help='only keep results that matches the given regex')
+
+
 
 args = parser.parse_args()
 
@@ -36,25 +39,24 @@ if 'all' in complexity:
 if args.r:
     reg = re.compile(args.r)
 
+numbers = []
 if args.n:
-    [s, *e] = args.n.split('-')
-    ns = int(s)
-    ne = (int(e[0]) if e else ns) + 1
-else:
-    ns = ne = 0
+    for nb in args.n:
+        [s, *e] = nb[0].split('-')
+        ns = int(s)
+        ne = (int(e[0]) if e else ns) + 1
+        numbers.append((ns, ne))
 
 ys = int(args.y) if args.y else 0
 ye = datetime.now().year + 1 if args.y else 0
 
-if args.a == 'all':
+if args.a == None:
     args.a = special
-if args.j == 'all':
+if args.j == None:
     args.j = special
 
 joints = list(args.j)
 appends = list(args.a)
-
-
 
 if args.l:
     [s, *e] = args.l.split('-')
@@ -63,6 +65,7 @@ if args.l:
 else:
     minlen = 0
     maxlen = 999
+
 
 
 def filter_len(s):
@@ -101,14 +104,15 @@ for p in args.p:
 
         for a in appends:
             wl.add(w + a)
-    
-        for i in range(ns, ne):
-            n = str(i)
-            wl.add(w + n)
-            for j in joints:
-                wl.add(w + j + n)
-            for a in appends:
-                wl.add(w + n + a)
+
+        for (ns, ne) in numbers:
+            for i in range(ns, ne):
+                n = str(i)
+                wl.add(w + n)
+                for j in joints:
+                    wl.add(w + j + n)
+                for a in appends:
+                    wl.add(w + n + a)
         
         for i in range(ys, ye):
             y = str(i)
