@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from datetime import datetime
+import itertools
 import argparse
 import re, sys
 
@@ -14,10 +15,26 @@ complexity_filters = {
     'special': r'[^a-zA-Z0-9]'
 }
 
+leet = {
+    'a':'4',
+    'b':'8',
+    'e':'3',
+    'g':'9',
+    'i':'1',
+    'l':'1',
+    'o':'0',
+    'r':'2',
+    's':'5',
+    't':'7',
+    'y':'7',
+    'z':'7'
+}
+leet_help = ','.join(['%s->%s'%(k,v) for (k,v) in leet.items()])
+
 
 parser = argparse.ArgumentParser(description="""
 Generate basic wordlist
-Example: -p entreprise,ville,departement:codepostal,123,23 -p covid:19,20 -y 2023 -n 1-10 -a -j -l 8
+Example: -p entreprise,ville,departement:codepostal,123,23 -p covid:19,20 -y 2023 -n 1-10 -a -j -l 8 -l33t ailo
 """)
 parser.add_argument('-p', nargs='+', action='append', dest='p', required=True, help='base words for wordlist generation. Format <word[,word]>:<suffix[,suffix]>]')
 parser.add_argument('-n', nargs='*', action='append', dest='n', help='append number (default 1..123). Format min-max or min to set only min')
@@ -27,7 +44,7 @@ parser.add_argument('-a', nargs='?', dest='a', default='', help='append these ch
 parser.add_argument('-l', dest='l', help='only keep results between min-max or at least min characters')
 parser.add_argument('-c', dest='c', default='any', help='Choose from %s. Only keep results that contains at least the specified characters set' % ','.join(complexity_filters.keys()))
 parser.add_argument('-r', dest='r', help='only keep results that matches the given regex')
-
+parser.add_argument('-l33t', nargs='?', dest='leet', default='', help='replace these chars for l33t mode (-l33t:%s)' % leet_help)
 
 
 args = parser.parse_args()
@@ -54,6 +71,12 @@ if args.a == None:
     args.a = special
 if args.j == None:
     args.j = special
+if args.leet == None:
+    args.leet = ''.join(leet.keys())
+for c in args.leet:
+    if c not in leet:
+        print('leet char %s not in %s' % (c, ','.join(leet.keys())))
+        sys.exit(1)
 
 joints = list(args.j)
 appends = list(args.a)
@@ -128,6 +151,18 @@ for p in args.p:
                 wl.add(w + j + s)
             for a in appends:
                 wl.add(w + s + a)
+
+if args.leet:
+    wleet = set()
+    for i in wl:
+        curr = i
+        for c in args.leet:
+            u = c.upper()
+            l = c.lower()
+            curr = curr.replace(u,leet[l]).replace(l,leet[l])
+            wleet.add(i.replace(u,leet[l]).replace(l,leet[l]))
+            wleet.add(curr)
+    wl.update(wleet)
 
 for i in wl:
     filter_len(i)
