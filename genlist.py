@@ -5,10 +5,9 @@ import itertools
 import argparse
 import re, sys
 
-special = '@*!#?$%%\'"'
+special = '@*!#?$%\'".:;,(){}[]-_~&\\/^=+`'
 
 complexity_filters = {
-    'any': r'.*',
     'lower': r'[a-z]',
     'upper': r'[A-Z]',
     'number': r'[0-9]',
@@ -42,14 +41,14 @@ parser.add_argument('-y', dest='y', help='append years (default 1990-current). F
 parser.add_argument('-j', nargs='?', dest='j', default='', help='use these chars to join word and suffix (-j=%s)' % special)
 parser.add_argument('-a', nargs='?', dest='a', default='', help='append these chars at the end (-a=%s)' % special)
 parser.add_argument('-l', dest='l', help='only keep results between min-max or at least min characters')
-parser.add_argument('-c', dest='c', default='any', help='Choose from %s. Only keep results that contains at least the specified characters set' % ','.join(complexity_filters.keys()))
+parser.add_argument('-c', dest='c', help='Choose from lower,upper,number,special,all. Only keep results that contains at least the specified characters set')
 parser.add_argument('-r', dest='r', help='only keep results that matches the given regex')
 parser.add_argument('-l33t', nargs='?', dest='leet', default='', help='replace these chars for l33t mode (-l33t:%s)' % leet_help)
 
 
 args = parser.parse_args()
 
-complexity = args.c.split(',')
+complexity = args.c.split(',') if args.c != None else []
 if 'all' in complexity:
     complexity = ['lower','upper','number','special']
 
