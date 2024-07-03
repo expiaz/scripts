@@ -61,27 +61,100 @@ class FzfPrompt:
 
 # ------------------------------------------------------
 
+# https://nvd.nist.gov/developers/request-an-api-key
 NVD_API_KEY = 'TODO'
 
 # TODO
 # https://services.nvd.nist.gov/rest/json/cpes/2.0?cpeMatchString=cpe:2.3:*:apache:http_server:1.*
-def search_cpe_api():
-    pass
+def search_cpe_api(vendor, product='*', version='*', proxies={}):
+
+    #cpe = f'cpe:2.3:*:'
+    if vendor.startswith('cpe:'):
+        cpe = vendor
+    else:
+        if ':' in vendor:
+            vendor, product, *version = vendor.split(':')
+            if len(version):
+                version = version[0]
+            else:
+                version = '*'
+        cpe = f'cpe:2.3:*:{vendor}:{product}:{version}'
+
+    print('searching CPEs %s' % (cpe))
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0',
+        'apiKey': NVD_API_KEY
+    }
+
+    url = 'https://services.nvd.nist.gov/rest/json/cves/2.0?cpeMatchString=%s' % requests.utils.requote_uri(cpe)
+    print('Requesting NVD CPE API at %s' % url)
+    resp = requests.get(
+        url=url,
+        headers=headers,
+        proxies=proxies,
+        verify=False
+    )
+    if resp.status_code != 200:
+        print('failed to fetch CPEs for %s' % (cpe))
+        sys.exit(1)
+
+    res = resp.json()
+    cpes = set([e['cpe']['cpeName'] for e in res['products'] if not e['cpe']['deprecated']])
+
+    per_page = res['resultsPerPage']
+    total = res['totalResults']
+    pages = res['totalResults'] // per_page
+    index = res['startIndex'] + per_page
+    while index < total:
+        print('[+] fetching page %d/%d' % (
+            (pages - (pages - index)) // per_page,
+            pages
+        ))
+        resp = requests.get(
+            url='https://services.nvd.nist.gov/rest/json/cves/2.0?cpeMatchString=%s&startIndex=%d&resultsPerPage=%d' % (
+                cpe,
+                index,
+                per_page
+            ),
+            headers=headers,
+            proxies=proxies,
+            verify=False
+        )
+        if resp.status_code != 200:
+            print('failed to fetch CPEs for %s' % (cpe))
+            sys.exit(1)
+        res = resp.json()
+        index = res['startIndex'] + res['resultsPerPage']
+        cpes.update(set([e['cpe']['cpeName'] for e in res['products'] if not e['cpe']['deprecated']]))
+
+    # vendors = {}
+    # for cpe in cpes:
+    #     _cpe, _v, _a, vendor, product, version, *left = cpes.split(':')
+    #     if vendor not in vendors:
+    #         vendors[vendor] = {}
+    #     if product not in vendors[vendor]:
+    #         vendors[vendor][product] = set()
+    #     vendors[vendor][product].add(version)
+
+    for cpe in cpes:
+        print(cpe)
 
 
-def search_cpe(vendor, product=None, version=None):
+
+def search_cpe(vendor, product='*', version='*', proxies={}):
 
     if ':' in vendor:
         vendor, product, *version = vendor.split(':')
         if len(version):
             version = version[0]
         else:
-            version = None
+            version = '*'
 
     print('searching CPEs for %s:%s:%s' % (
-        vendor+'*' if vendor else '*',
-        product+'*' if product else '*',
-        version+'*' if version else '*'
+        vendor,
+        product,
+        version
     ))
 
     # fetch products
@@ -89,7 +162,9 @@ def search_cpe(vendor, product=None, version=None):
         url='https://nvd.nist.gov/rest/public/cpe/vendors?serviceType=vendorList&startsWith=%s' % requests.utils.requote_uri(vendor),
         headers={
             'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0',
-        }
+        },
+        proxies=proxies,
+        verify=False
     )
     if resp.status_code != 200:
         print('failed to fetch vendors: %s' % vendor)
@@ -104,7 +179,7 @@ def search_cpe(vendor, product=None, version=None):
     vendor = vendors[0]
     
     # fetch products
-    if product != None:
+    if product != '*':
         resp = requests.get(
             url='https://nvd.nist.gov/rest/public/cpe/products?serviceType=products&vendor=%s&startsWith=%s' % (
                 requests.utils.requote_uri(vendor),
@@ -112,14 +187,18 @@ def search_cpe(vendor, product=None, version=None):
             ),
             headers={
                 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0',
-            }
+            },
+            proxies=proxies,
+            verify=False
         )
     else:
         resp = requests.get(
             url='https://nvd.nist.gov/rest/public/cpe/products?serviceType=products&vendor=%s' % requests.utils.requote_uri(vendor),
             headers={
                 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0',
-            }
+            },
+            proxies=proxies,
+            verify=False
         )
     if resp.status_code != 200:
         print('failed to fetch vendor products: %s:%s' % (vendor, product if product else '*'))
@@ -133,7 +212,7 @@ def search_cpe(vendor, product=None, version=None):
     product = products[0]
 
     # fetch versions
-    if version != None:
+    if version != '*':
         resp = requests.get(
             url='https://nvd.nist.gov/rest/public/cpe/versions?serviceType=versions&vendor=%s&product=%s&startsWith=%s' % (
                 requests.utils.requote_uri(vendor),
@@ -142,7 +221,9 @@ def search_cpe(vendor, product=None, version=None):
             ),
             headers={
                 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0',
-            }
+            },
+            proxies=proxies,
+            verify=False
         )
     else:
         resp = requests.get(
@@ -152,7 +233,9 @@ def search_cpe(vendor, product=None, version=None):
             ),
             headers={
                 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0',
-            }
+            },
+            proxies=proxies,
+            verify=False
         )
     if resp.status_code != 200:
         print('failed to fetch product versions: %s:%s:%s' % (vendor, product, version if version else '*'))
@@ -164,18 +247,27 @@ def search_cpe(vendor, product=None, version=None):
 
 
 # https://services.nvd.nist.gov/rest/json/cves/2.0?noRejected&cpeName=cpe:2.3:a:apache:http_server:2.4[&isVulnerable]
-def search_cve(cpe, rejected=False, vulnerable=False):
-
-    print('Searching CVEs for %s' % cpe)
+# more lax: https://services.nvd.nist.gov/rest/json/cves/2.0?virtualMatchString=cpe:2.3:a:apache:http_server:*&noRejected
+def search_cve(cpe, rejected=False, proxies={}):
 
     if not cpe.startswith('cpe:'):
         cpe = f'cpe:2.3:a:{cpe}'
 
-    query = '?cpeName=%s' % (requests.utils.requote_uri(cpe))
+    _cpe, _ver, _a, *parts = cpe.split(':')
+    # vendor only
+    if len(parts) == 1:
+        cpe += ':*:*'
+    # vendor product
+    if len(parts) == 2:
+        cpe += ':*'
+
+    print('Searching CVEs for %s' % cpe)
+
+    query = '?virtualMatchString=%s' % (requests.utils.requote_uri(cpe))
     if rejected == False:
         query += '&noRejected'
-    if vulnerable:
-        query += '&isVulnerable'
+    # if vulnerable:
+    #     query += '&isVulnerable'
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0',
@@ -183,22 +275,45 @@ def search_cve(cpe, rejected=False, vulnerable=False):
     }
 
     url = 'https://services.nvd.nist.gov/rest/json/cves/2.0%s' % query
-    print('Requesting NVD API at %s' % url)
+    print('Requesting NVD CVE API at %s' % url)
     resp = requests.get(
         url=url,
-        headers=headers
+        headers=headers,
+        proxies=proxies,
+        verify=False
     )
     if resp.status_code != 200:
         print('failed to fetch CVE for %s' % (cpe))
         sys.exit(1)
 
     res = resp.json()
-    # TODO multi page response > 2000 entries
-    #res['resultsPerPage']
-    #res['startIndex']
-    #res['totalResults']
+    print('[+] found %d CVEs' % res['totalResults'])
+    cves = [e['cve'] for e in res['vulnerabilities']]
 
-    return [e['cve'] for e in res['vulnerabilities']]
+    per_page = res['resultsPerPage']
+    total = res['totalResults']
+    pages = res['totalResults'] // per_page
+    index = res['startIndex'] + per_page
+    while index < total:
+        print('[+] fetching page %d/%d' % (
+            (pages - (pages - index)) // per_page,
+            pages
+        ))
+        q = '%s&startIndex=%d&resultsPerPage=%d' % (query, index, per_page)
+        resp = requests.get(
+            url='https://services.nvd.nist.gov/rest/json/cves/2.0%s' % q,
+            headers=headers,
+            proxies=proxies,
+            verify=False
+        )
+        if resp.status_code != 200:
+            print('failed to fetch CVE for %s' % (cpe))
+            sys.exit(1)
+        res = resp.json()
+        index = res['startIndex'] + res['resultsPerPage']
+        cves.extend([e['cve'] for e in res['vulnerabilities']])
+
+    return cves
 
 
 def sort_cves(a, b):
@@ -273,13 +388,15 @@ def parse_args():
 
     cpe = argparse.ArgumentParser(add_help=False)
     cpe.add_argument('vendor', action='store', help='Vendor to search for')
-    cpe.add_argument('product', nargs='?', action='store', default=None, help='Optionnal product to search for')
-    cpe.add_argument('version', nargs='?', action='store', default=None, help='Optionnal product version to search for')
+    cpe.add_argument('product', nargs='?', action='store', default='*', help='Optionnal product to search for')
+    cpe.add_argument('version', nargs='?', action='store', default='*', help='Optionnal product version to search for')
+    cpe.add_argument('--proxy', default=None, help='Optionnal proxy to log HTTP requests')
 
     cve = argparse.ArgumentParser(add_help=False)
     cve.add_argument('cpe', action='store', help='CPE to search for. The CPE can either contain the "cpe:" mention as in cpe:2.3:a:vendor:product:version or directly the vendor:product:version part.')
-    cve.add_argument('--vulnerable', action="store_true", help='Show only vulnerable products and not vulnerable configurations')
+    #cve.add_argument('--vulnerable', action="store_true", help='Show only vulnerable products and not vulnerable configurations')
     cve.add_argument('--rejected', action="store_true", help='Includes rejected CVE')
+    cve.add_argument('--proxy', default=None, action="store_true", help='Optionnal proxy to log HTTP requests')
 
     subparsers = parser.add_subparsers(help="Mode", dest="mode")
     subparsers.add_parser("cpe", parents=[cpe], help="Search for CPE")
@@ -290,8 +407,17 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
+    proxies = {}
+    requests.packages.urllib3.disable_warnings()
+    if args.proxy:
+        proxies = {
+            'http': args.proxy,
+            'https': args.proxy
+        }
+
     if args.mode == 'cpe':
-        search_cpe(args.vendor, args.product)
+        search_cpe(args.vendor, args.product, args.version, proxies)
+        #search_cpe_api(args.vendor, args.product, args.version)
     elif args.mode == 'cve':
-        cves = search_cve(args.cpe, args.rejected, args.vulnerable)
+        cves = search_cve(args.cpe, args.rejected, proxies)
         print_cves(args.cpe, sorted(cves, key=cmp_to_key(sort_cves)))
